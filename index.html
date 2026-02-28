@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>DERMEDGE — Admin</title>
+  <link rel="stylesheet" href="style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <!-- ✅ Supabase JS SDK — must load before script.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="logo">
+        <div class="logo-icon"><span class="material-symbols-outlined">storefront</span></div>
+        <h1>DERMEDGE</h1>
+      </div>
+      <nav class="nav">
+        <a class="nav-item active" data-page="inventory">
+          <span class="material-symbols-outlined">inventory_2</span><span>Inventory</span>
+        </a>
+        <a class="nav-item" data-page="transactions">
+          <span class="material-symbols-outlined">receipt_long</span><span>Transactions</span>
+        </a>
+        <a class="nav-item" data-page="customers">
+          <span class="material-symbols-outlined">group</span><span>Customers</span>
+        </a>
+        <a class="nav-item" data-page="reporting">
+          <span class="material-symbols-outlined">bar_chart</span><span>Reporting</span>
+        </a>
+      </nav>
+    </div>
+    <div class="sidebar-bottom">
+      <div class="user-card">
+        <div class="user-avatar">--</div>
+        <div class="user-info">
+          <p class="user-name">Loading…</p>
+          <p class="user-role">Staff</p>
+        </div>
+      </div>
+      <button class="clock-out-btn" id="clockOutBtn">
+        <span class="material-symbols-outlined">logout</span>Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+
+    <header class="topbar">
+      <div class="search-wrap">
+        <span class="material-symbols-outlined search-icon">search</span>
+        <input id="searchInput" class="search-input" placeholder="Search…" type="text" autocomplete="off"/>
+        <kbd class="search-shortcut">⌘K</kbd>
+      </div>
+      <div class="topbar-right">
+        <div class="clock-wrap">
+          <p id="clockDate" class="clock-date"></p>
+          <p id="clockTime" class="clock-time"></p>
+        </div>
+        <button class="icon-btn" id="notifBtn" title="Notifications">
+          <span class="material-symbols-outlined">notifications</span>
+          <span class="badge" id="notifBadge"></span>
+        </button>
+        <button class="icon-btn" id="settingsBtn" title="Settings">
+          <span class="material-symbols-outlined">settings</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- PAGE: INVENTORY -->
+    <div class="page" id="page-inventory">
+      <div class="page-inner">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Inventory</h2>
+            <p class="page-sub">Manage stock levels and product details</p>
+          </div>
+          <div class="page-actions">
+            <button class="outline-btn" id="invExportBtn"><span class="material-symbols-outlined">download</span>Export CSV</button>
+            <button class="primary-btn" id="invAddBtn"><span class="material-symbols-outlined">add</span>Add Product</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <div class="toolbar-search-wrap">
+            <span class="material-symbols-outlined">search</span>
+            <input id="invSearch" class="toolbar-search" placeholder="Search products…" type="text"/>
+          </div>
+          <select id="invCatFilter" class="toolbar-select">
+            <option value="all">All Categories</option>
+            <option value="Skin Care Products">Skin Care Products</option>
+          </select>
+          <select id="invStockFilter" class="toolbar-select">
+            <option value="all">All Stock</option>
+            <option value="in">In Stock</option>
+            <option value="low">Low Stock (&lt;10)</option>
+            <option value="out">Out of Stock</option>
+          </select>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th data-sort="name">Product <span class="sort-icon">↕</span></th>
+                <th data-sort="cat">Category <span class="sort-icon">↕</span></th>
+                <th data-sort="sku">SKU <span class="sort-icon">↕</span></th>
+                <th data-sort="price">Price <span class="sort-icon">↕</span></th>
+                <th data-sort="stock">Stock <span class="sort-icon">↕</span></th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="invBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: TRANSACTIONS -->
+    <div class="page hidden" id="page-transactions">
+      <div class="page-inner">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Transactions</h2>
+            <p class="page-sub">All completed sales records</p>
+          </div>
+          <div class="page-actions">
+            <button class="outline-btn" id="txnExportBtn"><span class="material-symbols-outlined">download</span>Export CSV</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <div class="toolbar-search-wrap">
+            <span class="material-symbols-outlined">search</span>
+            <input id="txnSearch" class="toolbar-search" placeholder="Search by ID, customer, method…" type="text"/>
+          </div>
+          <select id="txnMethodFilter" class="toolbar-select">
+            <option value="all">All Methods</option>
+            <option value="cash">Cash</option>
+            <option value="card">Card</option>
+            <option value="split">Split</option>
+          </select>
+          <select id="txnDateFilter" class="toolbar-select">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+        </div>
+        <div class="txn-stats" id="txnStats"></div>
+        <div class="data-table-wrap" id="txnTableWrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>TXN ID</th>
+                <th>Date / Time</th>
+                <th>Customer</th>
+                <th>Items</th>
+                <th>Method</th>
+                <th>Subtotal</th>
+                <th>Tax</th>
+                <th>Total</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="txnBody"></tbody>
+          </table>
+        </div>
+        <div class="empty-page" id="txnEmpty" style="display:none">
+          <span class="material-symbols-outlined">receipt_long</span>
+          <p>No transactions found</p>
+          <p class="empty-hint">Completed sales will appear here</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: CUSTOMERS -->
+    <div class="page hidden" id="page-customers">
+      <div class="page-inner">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Customers</h2>
+            <p class="page-sub">Manage your customer database</p>
+          </div>
+          <div class="page-actions">
+            <button class="outline-btn" id="custExportBtn"><span class="material-symbols-outlined">download</span>Export CSV</button>
+            <button class="primary-btn" id="custAddBtn"><span class="material-symbols-outlined">person_add</span>Add Customer</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <div class="toolbar-search-wrap">
+            <span class="material-symbols-outlined">search</span>
+            <input id="custSearch" class="toolbar-search" placeholder="Search by name, email, phone…" type="text"/>
+          </div>
+          <select id="custSortFilter" class="toolbar-select">
+            <option value="name">Sort: Name</option>
+            <option value="spent">Sort: Top Spenders</option>
+            <option value="orders">Sort: Most Orders</option>
+          </select>
+        </div>
+        <div class="customer-cards" id="custCards"></div>
+        <div class="empty-page hidden" id="custEmpty">
+          <span class="material-symbols-outlined">group</span>
+          <p>No customers found</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: REPORTING -->
+    <div class="page hidden" id="page-reporting">
+      <div class="page-inner">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Reporting</h2>
+            <p class="page-sub">Business performance overview</p>
+          </div>
+          <div class="page-actions">
+            <button class="outline-btn" id="repExportBtn"><span class="material-symbols-outlined">download</span>Export Report</button>
+          </div>
+        </div>
+        <div class="kpi-grid" id="kpiGrid"></div>
+        <div class="charts-row">
+          <div class="chart-card">
+            <h4 class="chart-title">Revenue by Category</h4>
+            <div class="bar-chart" id="catChart"></div>
+          </div>
+          <div class="chart-card">
+            <h4 class="chart-title">Payment Methods</h4>
+            <div class="donut-wrap">
+              <canvas id="donutCanvas" width="160" height="160"></canvas>
+              <div class="donut-legend" id="donutLegend"></div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h4 class="chart-title">Top Products by Revenue</h4>
+            <div class="top-products-list" id="topProducts"></div>
+          </div>
+        </div>
+        <div class="chart-card full-width">
+          <h4 class="chart-title">Transaction Timeline</h4>
+          <div class="line-chart-wrap">
+            <canvas id="lineCanvas"></canvas>
+          </div>
+          <div class="empty-page" id="lineEmpty" style="display:none">
+            <span class="material-symbols-outlined">show_chart</span>
+            <p>No transaction data yet</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODALS -->
+
+<!-- Customer Edit/Create -->
+<div class="modal-overlay" id="custDetailModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="custDetailTitle">Customer</h3>
+      <button class="modal-close" data-modal="custDetailModal"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body" id="custDetailBody"></div>
+    <div class="modal-footer">
+      <button class="modal-cancel-btn danger-text" id="custDeleteBtn">Delete</button>
+      <button class="modal-cancel-btn" data-modal="custDetailModal">Cancel</button>
+      <button class="modal-confirm-btn" id="custDetailSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory Add/Edit -->
+<div class="modal-overlay" id="invEditModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="invEditTitle">Edit Product</h3>
+      <button class="modal-close" data-modal="invEditModal"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body" id="invEditBody"></div>
+    <div class="modal-footer">
+      <button class="modal-cancel-btn" data-modal="invEditModal">Cancel</button>
+      <button class="modal-confirm-btn" id="invEditSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Transaction Detail -->
+<div class="modal-overlay" id="txnDetailModal" style="display:none">
+  <div class="modal receipt-modal">
+    <div class="modal-header">
+      <h3>Transaction Detail</h3>
+      <button class="modal-close" data-modal="txnDetailModal"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body"><div class="receipt" id="txnDetailContent"></div></div>
+    <div class="modal-footer">
+      <button class="modal-cancel-btn" id="txnPrintBtn"><span class="material-symbols-outlined">print</span>Print</button>
+      <button class="modal-confirm-btn" data-modal="txnDetailModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications -->
+<div class="notif-panel" id="notifPanel" style="display:none">
+  <div class="notif-header"><h4>Notifications</h4><button id="markAllRead">Mark all read</button></div>
+  <div class="notif-list" id="notifList"></div>
+</div>
+
+<!-- Settings -->
+<div class="modal-overlay" id="settingsModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Settings</h3>
+      <button class="modal-close" data-modal="settingsModal"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body">
+      <div class="setting-row">
+        <div><p class="setting-label">Tax Rate</p><p class="setting-hint">Displayed on transaction records</p></div>
+        <div class="setting-control"><input id="taxRateInput" class="setting-input" type="number" min="0" max="30" step="0.1" value="8"/><span>%</span></div>
+      </div>
+      <div class="setting-row">
+        <div><p class="setting-label">Currency Symbol</p></div>
+        <div class="setting-control"><input id="currencyInput" class="setting-input" type="text" maxlength="3" value="$"/></div>
+      </div>
+      <div class="setting-row">
+        <div><p class="setting-label">Low Stock Threshold</p><p class="setting-hint">Warn when stock falls below</p></div>
+        <div class="setting-control"><input id="lowStockInput" class="setting-input" type="number" min="1" value="10"/><span>units</span></div>
+      </div>
+      <div class="setting-row">
+        <div><p class="setting-label">Store Name</p></div>
+        <div class="setting-control"><input id="storeNameInput" class="setting-input wide" type="text" value="DERMEDGE Store"/></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="modal-confirm-btn" id="saveSettingsBtn">Save Settings</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="script.js"></script>
+</body>
+</html>

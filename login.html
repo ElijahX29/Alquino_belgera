@@ -1,0 +1,286 @@
+\<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>DERMEDGE — Sign In</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary:     #f2f20d;
+      --primary-dim: rgba(242,242,13,.1);
+      --bg-dark:     #0f0f08;
+      --bg-mid:      #161610;
+      --bg-panel:    #1c1c10;
+      --border:      #2e2e18;
+      --border-hi:   #3e3e22;
+      --text:        #e5e5cc;
+      --muted:       #72724e;
+      --danger:      #f05252;
+      --success:     #52d68a;
+      --radius:      8px;
+      --radius-lg:   12px;
+      --font-mono:   'Space Mono', monospace;
+      --font-sans:   'Syne', sans-serif;
+      --shadow:      0 24px 60px rgba(0,0,0,.7);
+    }
+    html { font-size: 14px; }
+    body { background: var(--bg-dark); color: var(--text); font-family: var(--font-sans); min-height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+    body::before { content: ''; position: fixed; inset: 0; background-image: linear-gradient(rgba(242,242,13,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(242,242,13,.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 0; }
+    body::after { content: ''; position: fixed; width: 500px; height: 500px; background: radial-gradient(circle, rgba(242,242,13,.06) 0%, transparent 70%); top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 0; }
+    .top-bar { position: fixed; top: 0; left: 0; right: 0; height: 48px; background: var(--bg-mid); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 10; }
+    .top-bar-logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { background: var(--primary); color: var(--bg-dark); border-radius: var(--radius); width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon .material-symbols-outlined { font-size: 16px; font-variation-settings: 'FILL' 1; }
+    .logo-name { font-weight: 800; font-size: 1rem; letter-spacing: -.02em; }
+    .clock-info { text-align: right; }
+    .clock-date { font-size: .68rem; font-weight: 600; color: var(--muted); }
+    .clock-time { font-family: var(--font-mono); font-size: .65rem; color: var(--primary); letter-spacing: .05em; }
+    .login-wrap { position: relative; z-index: 1; width: min(400px, 92vw); animation: slideUp .3s cubic-bezier(.4,0,.2,1) both; }
+    .login-card { background: var(--bg-panel); border: 1px solid var(--border-hi); border-radius: var(--radius-lg); padding: 32px; box-shadow: var(--shadow); }
+    .login-header { text-align: center; margin-bottom: 28px; }
+    .login-icon { width: 52px; height: 52px; background: var(--primary); color: var(--bg-dark); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+    .login-icon .material-symbols-outlined { font-size: 26px; font-variation-settings: 'FILL' 1; }
+    .login-title { font-weight: 800; font-size: 1.3rem; letter-spacing: -.02em; margin-bottom: 4px; }
+    .login-sub { font-size: .75rem; color: var(--muted); }
+    .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .form-label { font-size: .68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .input-wrap { position: relative; display: flex; align-items: center; }
+    .input-icon { position: absolute; left: 10px; color: var(--muted); font-size: 17px; pointer-events: none; transition: color .15s; }
+    .form-input { width: 100%; background: var(--bg-dark); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 9px 11px 9px 36px; font-family: var(--font-sans); font-size: .85rem; outline: none; transition: border-color .15s, box-shadow .15s; }
+    .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(242,242,13,.1); }
+    .input-wrap:focus-within .input-icon { color: var(--primary); }
+    .toggle-pw { position: absolute; right: 10px; background: none; border: none; color: var(--muted); cursor: pointer; display: flex; padding: 0; font-size: 17px; transition: color .15s; }
+    .toggle-pw:hover { color: var(--text); }
+    .role-select-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .role-btn { padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-dark); color: var(--muted); font-family: var(--font-sans); font-weight: 700; font-size: .75rem; cursor: pointer; text-align: center; transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .role-btn .material-symbols-outlined { font-size: 15px; }
+    .role-btn:hover { border-color: var(--border-hi); color: var(--text); }
+    .role-btn.active { border-color: var(--primary); background: var(--primary-dim); color: var(--primary); }
+    .remember-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .checkbox-wrap { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .checkbox-wrap input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
+    .checkbox-label { font-size: .75rem; color: var(--muted); font-weight: 600; }
+    .forgot-link { font-size: .72rem; color: var(--primary); font-weight: 700; text-decoration: none; opacity: .8; transition: opacity .15s; }
+    .forgot-link:hover { opacity: 1; }
+    .submit-btn { width: 100%; padding: 11px; background: var(--primary); border: none; border-radius: var(--radius); color: var(--bg-dark); font-family: var(--font-sans); font-weight: 800; font-size: .9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity .15s, transform .1s; letter-spacing: -.01em; }
+    .submit-btn:hover { opacity: .88; }
+    .submit-btn:active { transform: scale(.98); }
+    .submit-btn .material-symbols-outlined { font-size: 18px; }
+    .submit-btn.loading { opacity: .7; pointer-events: none; }
+    .error-msg { background: rgba(240,82,82,.08); border: 1px solid rgba(240,82,82,.25); border-radius: var(--radius); padding: 9px 12px; font-size: .75rem; color: var(--danger); margin-bottom: 14px; display: none; align-items: center; gap: 7px; }
+    .error-msg.show { display: flex; animation: fadeIn .15s ease; }
+    .error-msg .material-symbols-outlined { font-size: 15px; flex-shrink: 0; }
+    .divider { display: flex; align-items: center; gap: 10px; margin: 16px 0; }
+    .divider-line { flex: 1; height: 1px; background: var(--border); }
+    .divider-text { font-size: .68rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .demo-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+    .demo-pill { padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-dark); color: var(--muted); font-size: .68rem; font-family: var(--font-mono); cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .demo-pill:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-dim); }
+    .login-footer { text-align: center; margin-top: 20px; font-size: .68rem; color: var(--muted); }
+    .login-footer span { font-family: var(--font-mono); color: var(--primary); font-size: .62rem; }
+    .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(8px); background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 9px 18px; font-weight: 700; font-size: .82rem; box-shadow: 0 12px 40px rgba(0,0,0,.6); z-index: 200; opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; white-space: nowrap; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: var(--success); color: var(--success); }
+    .toast.error   { border-color: var(--danger);  color: var(--danger);  }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 99px; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    .spin { animation: spin .7s linear infinite; display: inline-block; }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <div class="top-bar-logo">
+      <div class="logo-icon"><span class="material-symbols-outlined">storefront</span></div>
+      <span class="logo-name">DERMEDGE</span>
+    </div>
+    <div class="clock-info">
+      <p class="clock-date" id="clockDate"></p>
+      <p class="clock-time" id="clockTime"></p>
+    </div>
+  </div>
+
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-icon"><span class="material-symbols-outlined">lock</span></div>
+        <h1 class="login-title">Admin Sign In</h1>
+        <p class="login-sub">Retail POS Management Console</p>
+      </div>
+
+      <div style="margin-bottom:6px">
+        <p class="form-label" style="margin-bottom:8px">Sign in as</p>
+        <div class="role-select-row">
+          <button class="role-btn active" data-role="manager">
+            <span class="material-symbols-outlined">manage_accounts</span>Manager
+          </button>
+          <button class="role-btn" data-role="cashier">
+            <span class="material-symbols-outlined">point_of_sale</span>Cashier
+          </button>
+        </div>
+      </div>
+
+      <div class="error-msg" id="errorMsg">
+        <span class="material-symbols-outlined">error</span>
+        <span id="errorText">Invalid credentials. Please try again.</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="emailInput">Email address</label>
+        <div class="input-wrap">
+          <input class="form-input" id="emailInput" type="email" placeholder="you@dermedge.com" autocomplete="email"/>
+          <span class="material-symbols-outlined input-icon">mail</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="passwordInput">Password</label>
+        <div class="input-wrap">
+          <input class="form-input" id="passwordInput" type="password" placeholder="Enter your password" autocomplete="current-password"/>
+          <span class="material-symbols-outlined input-icon">key</span>
+          <button class="toggle-pw" id="togglePw" type="button">
+            <span class="material-symbols-outlined" id="eyeIcon">visibility_off</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="remember-row">
+        <label class="checkbox-wrap">
+          <input type="checkbox" id="rememberMe"/>
+          <span class="checkbox-label">Remember me</span>
+        </label>
+        <a href="#" class="forgot-link" id="forgotLink">Forgot password?</a>
+      </div>
+
+      <button class="submit-btn" id="submitBtn">
+        <span class="material-symbols-outlined">login</span>
+        Sign In to Dashboard
+      </button>
+
+      <div class="divider">
+        <div class="divider-line"></div>
+        <span class="divider-text">Quick demo</span>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="demo-pills">
+        <button class="demo-pill" id="fillAdmin">👤 admin@dermedge.com</button>
+        <button class="demo-pill" id="fillCashier">🧾 cashier@dermedge.com</button>
+      </div>
+    </div>
+    <p class="login-footer">Powered by Supabase &nbsp;·&nbsp; DERMEDGE POS v3.0 &nbsp;·&nbsp; <span>© 2026</span></p>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    'use strict';
+
+    const SUPABASE_URL  = 'https://oqikzfevfjvuxvapwdbt.supabase.co';
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9xaWt6ZmV2Zmp2dXh2YXB3ZGJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNzY4NTgsImV4cCI6MjA4Nzg1Mjg1OH0.Ilga21jT5MvBIXIi3ePvxAEtc6bQwaf4Zkpe_RHYSF0';
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    // Clock
+    function updateClock() {
+      const n = new Date();
+      document.getElementById('clockDate').textContent = n.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+      document.getElementById('clockTime').textContent = n.toLocaleTimeString('en-US', { hour12:false });
+    }
+    updateClock(); setInterval(updateClock, 1000);
+
+    // Toast
+    let _tt;
+    function showToast(msg, type='info') {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.className = `toast show ${type}`;
+      clearTimeout(_tt); _tt = setTimeout(() => t.classList.remove('show'), 2800);
+    }
+    function showError(msg) {
+      document.getElementById('errorText').textContent = msg;
+      document.getElementById('errorMsg').classList.add('show');
+    }
+    function hideError() { document.getElementById('errorMsg').classList.remove('show'); }
+
+    // Role buttons
+    document.querySelectorAll('.role-btn').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }));
+
+    // Toggle password
+    document.getElementById('togglePw').addEventListener('click', () => {
+      const inp = document.getElementById('passwordInput');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+      document.getElementById('eyeIcon').textContent = inp.type === 'password' ? 'visibility_off' : 'visibility';
+    });
+
+    // Demo pills
+    document.getElementById('fillAdmin').addEventListener('click', () => {
+      document.getElementById('emailInput').value = 'admin@dermedge.com';
+      document.getElementById('passwordInput').value = 'admin123';
+      hideError(); showToast('Demo credentials filled — click Sign In');
+    });
+    document.getElementById('fillCashier').addEventListener('click', () => {
+      document.getElementById('emailInput').value = 'cashier@dermedge.com';
+      document.getElementById('passwordInput').value = 'cashier123';
+      hideError(); showToast('Demo credentials filled — click Sign In');
+    });
+
+    // Forgot password
+    document.getElementById('forgotLink').addEventListener('click', async e => {
+      e.preventDefault();
+      const email = document.getElementById('emailInput').value.trim();
+      if (!email) { showError('Enter your email address first.'); return; }
+      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/reset-password.html' });
+      error ? showToast(error.message, 'error') : showToast('Password reset email sent!', 'success');
+    });
+
+    // Login
+    async function handleLogin() {
+      hideError();
+      const email    = document.getElementById('emailInput').value.trim();
+      const password = document.getElementById('passwordInput').value;
+      const btn      = document.getElementById('submitBtn');
+      const remember = document.getElementById('rememberMe').checked;
+
+      if (!email)    { showError('Please enter your email address.'); return; }
+      if (!password) { showError('Please enter your password.');      return; }
+
+      btn.classList.add('loading');
+      btn.innerHTML = `<span class="material-symbols-outlined spin">progress_activity</span> Signing in…`;
+
+      const { data, error } = await db.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        btn.classList.remove('loading');
+        btn.innerHTML = `<span class="material-symbols-outlined">login</span> Sign In to Dashboard`;
+        showError(error.message || 'Invalid email or password.');
+        return;
+      }
+
+      if (remember) localStorage.setItem('dermedge_email', email);
+      else          localStorage.removeItem('dermedge_email');
+
+      showToast('Welcome back!', 'success');
+      document.body.style.transition = 'opacity .4s ease';
+      setTimeout(() => { document.body.style.opacity = '0'; setTimeout(() => { window.location.href = 'index.html'; }, 400); }, 600);
+    }
+
+    document.getElementById('submitBtn').addEventListener('click', handleLogin);
+    document.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+
+    // Pre-fill saved email
+    const saved = localStorage.getItem('dermedge_email');
+    if (saved) { document.getElementById('emailInput').value = saved; document.getElementById('rememberMe').checked = true; }
+
+    // Skip if already logged in
+    db.auth.getSession().then(({ data: { session } }) => { if (session) window.location.href = 'index.html'; });
+  </script>
+</body>
+</html>
