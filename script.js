@@ -293,7 +293,7 @@ function openInvEdit(id, stockOnly) {
     <div class="form-row">
       <div class="form-group"><label class="form-label">Category</label>
         <select class="form-input" id="fe_cat">
-          ${['Skin Care Products'].map(c=>`<option${c===p?.cat?' selected':''}>${c}</option>`).join('')}
+         ${['Skin Care Products', 'Hair Care', 'Body Lotion', 'Topical Cream','Fragrance'].map(c=>`<option${c===p?.cat?' selected':''}>${c}</option>`).join('')}
         </select>
       </div>
       <div class="form-group"><label class="form-label">SKU</label><input class="form-input" id="fe_sku" value="${p?.sku||''}"/></div>
