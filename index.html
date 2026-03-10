@@ -22,19 +22,22 @@
         <h1>DERMEDGE</h1>
       </div>
       <nav class="nav">
-        <a class="nav-item active" data-page="inventory">
-          <span class="material-symbols-outlined">inventory_2</span><span>Inventory</span>
-        </a>
-        <a class="nav-item" data-page="transactions">
-          <span class="material-symbols-outlined">receipt_long</span><span>Transactions</span>
-        </a>
-        <a class="nav-item" data-page="customers">
-          <span class="material-symbols-outlined">group</span><span>Customers</span>
-        </a>
-        <a class="nav-item" data-page="reporting">
-          <span class="material-symbols-outlined">bar_chart</span><span>Reporting</span>
-        </a>
-      </nav>
+      <a class="nav-item active" data-page="inventory">
+        <span class="material-symbols-outlined">inventory_2</span><span>Inventory</span>
+      </a>
+      <a class="nav-item" data-page="pos">
+        <span class="material-symbols-outlined">point_of_sale</span><span>Purchase/Services</span>
+      </a>
+      <a class="nav-item" data-page="transactions">
+        <span class="material-symbols-outlined">receipt_long</span><span>Transactions</span>
+      </a>
+      <a class="nav-item" data-page="customers">
+        <span class="material-symbols-outlined">group</span><span>Customers</span>
+      </a>
+      <a class="nav-item" data-page="reporting">
+        <span class="material-symbols-outlined">bar_chart</span><span>Reporting</span>
+      </a>
+    </nav>
     </div>
     <div class="sidebar-bottom">
       <div class="user-card">
@@ -151,6 +154,14 @@
             <option value="week">This Week</option>
             <option value="month">This Month</option>
           </select>
+        <select id="txnServiceFilter" class="toolbar-select">
+            <option value="all">All Services</option>
+            <option value="product">Products</option>
+            <option value="facial">Facial</option>
+            <option value="body_treatment">Body Treatment</option>
+            <option value="laser_therapy">Epidermal Laser Therapy</option>
+            <option value="other">Other / Mixed</option>
+          </select>
         </div>
         <div class="txn-stats" id="txnStats"></div>
         <div class="data-table-wrap" id="txnTableWrap">
@@ -254,8 +265,105 @@
       </div>
     </div>
 
+    <!-- PAGE: POS / PURCHASE & SERVICES -->
+<div class="page hidden" id="page-pos">
+  <div class="page-inner">
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">Purchase / Services</h2>
+        <p class="page-sub">Sell products or book services</p>
+      </div>
+      <div class="page-actions">
+        <button class="outline-btn" id="posClearBtn">Clear Cart</button>
+      </div>
+    </div>
+
+    <div class="pos-layout">
+      <!-- Left: Items grid -->
+      <div class="pos-items">
+        <div class="toolbar">
+          <div class="toolbar-search-wrap">
+            <span class="material-symbols-outlined">search</span>
+            <input id="posSearch" class="toolbar-search" placeholder="Search products or services…" type="text"/>
+          </div>
+          <select id="posTypeFilter" class="toolbar-select">
+            <option value="all">All Items</option>
+            <option value="product">Products only</option>
+            <option value="service">Services only</option>
+          </select>
+          <select id="posCatFilter" class="toolbar-select">
+            <option value="all">All Categories</option>
+            <!-- will be populated dynamically -->
+          </select>
+        </div>
+
+        <div id="posGrid" class="pos-grid"></div>
+      </div>
+
+      <!-- Right: Cart & checkout -->
+      <div class="pos-cart">
+        <h3>Current Sale</h3>
+        <div id="posCartItems" class="pos-cart-items"></div>
+
+        <!-- Inside .pos-cart (the right sidebar) -->
+
+        <div class="pos-customer">
+          <label class="pos-label">Customer (optional)</label>
+          <div class="search-wrap pos-search-wrap">
+            <span class="material-symbols-outlined search-icon">person_search</span>
+            <input 
+              id="posCustomerSearch" 
+              class="search-input pos-search-input" 
+              placeholder="Search name or phone..." 
+              autocomplete="off"
+              type="text"
+            />
+            <!-- Optional: add shortcut hint if you want consistency -->
+            <!-- <kbd class="search-shortcut">⌘K</kbd> -->
+          </div>
+          <div id="posCustomerSuggestions" class="pos-suggestions"></div>
+        </div>
+
+        <div class="pos-payment">
+          <label class="pos-label">Payment Method</label>
+          <div class="search-wrap pos-search-wrap">
+            <span class="material-symbols-outlined search-icon">payments</span>
+            <select 
+              id="posPaymentMethod" 
+              class="search-input pos-search-input pos-select"
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="split">Split</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pos-totals">
+          <div class="pos-total-line">
+            <span>Subtotal</span>
+            <span id="posSubtotal">$0.00</span>
+          </div>
+          <div class="pos-total-line">
+            <span>Tax (<span id="posTaxRate">8</span>%)</span>
+            <span id="posTax">$0.00</span>
+          </div>
+          <div class="pos-total-line grand">
+            <span>Total</span>
+            <span id="posGrandTotal">$0.00</span>
+          </div>
+        </div>
+
+            <button id="posCompleteBtn" class="primary-btn large">Complete Sale</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
+
+
 
 <!-- MODALS -->
 

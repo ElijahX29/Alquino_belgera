@@ -87,6 +87,100 @@ body { background:var(--bg-dark); color:var(--text); font-family:var(--font-sans
 .clock-out-btn:hover { background:rgba(240,82,82,.2); color:var(--danger); }
 .clock-out-btn .material-symbols-outlined { font-size:16px; }
 
+.pos-layout {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 1.5rem;
+  height: calc(100vh - 180px);
+}
+
+.pos-items { overflow-y: auto; }
+.pos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.pos-item-card {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pos-item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(242,242,13,0.12);
+}
+
+.pos-item-name { font-weight: 600; margin: 0.5rem 0 0.3rem; }
+.pos-item-price { color: #f2f20d; font-size: 1.1rem; }
+
+.pos-cart {
+  background: var(--surface-dark);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.pos-cart-items { flex: 1; overflow-y: auto; max-height: 380px; }
+.pos-cart-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pos-customer, .pos-payment { margin: 1.2rem 0; }
+
+.pos-totals {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: rgba(242,242,13,0.05);
+  border-radius: 8px;
+}
+
+.pos-total-line {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.6rem 0;
+  font-size: 1.05rem;
+}
+
+.pos-total-line.grand {
+  font-size: 1.4rem;
+  font-weight: bold;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.pos-suggestions {
+  background: var(--surface);
+  border-radius: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 0.4rem;
+}
+
+.pos-suggestion-item {
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+}
+
+.pos-suggestion-item:hover { background: rgba(242,242,13,0.08); }
+
+.primary-btn.large {
+  padding: 1.2rem;
+  font-size: 1.25rem;
+  margin-top: auto;
+}
+
 /* ── Topbar ── */
 .topbar {
   height:54px; border-bottom:1px solid var(--border);
@@ -415,4 +509,3 @@ body { background:var(--bg-dark); color:var(--text); font-family:var(--font-sans
 /* Animations */
 @keyframes fadeIn  { from{opacity:0}              to{opacity:1} }
 @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-
