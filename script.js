@@ -19,6 +19,7 @@ let state = {
   products:      [],
   customers:     [],
   transactions:  [],
+  pos:           { cart: [], customer: null },
   notifications: [],
   settings: { taxRate:8, currency:'$', lowStock:10, storeName:'DERMEDGE Store' },
   invSort: { key:'name', dir:1 },
@@ -33,6 +34,15 @@ let state = {
 const fmt      = n => `${state.settings.currency}${(+n).toFixed(2)}`;
 const el       = id => document.getElementById(id);
 const initials = name => name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+const esc      = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+const SERVICE_CATALOG = [
+  { id:'svc-facial-basic', type:'service', name:'Signature Facial', cat:'Facial', sku:'SVC-FAC-001', price:120, stock:Infinity, variant:'60 min treatment' },
+  { id:'svc-facial-deep', type:'service', name:'Deep Cleansing Facial', cat:'Facial', sku:'SVC-FAC-002', price:150, stock:Infinity, variant:'75 min treatment' },
+  { id:'svc-body-contour', type:'service', name:'Body Treatment', cat:'Body Treatment', sku:'SVC-BDY-001', price:180, stock:Infinity, variant:'Body care session' },
+  { id:'svc-laser-therapy', type:'service', name:'Epidermal Laser Therapy', cat:'Epidermal Laser Therapy', sku:'SVC-LSR-001', price:250, stock:Infinity, variant:'Specialist session' },
+  { id:'svc-consultation', type:'service', name:'Skin Consultation', cat:'Other Services', sku:'SVC-OTH-001', price:50, stock:Infinity, variant:'Consultation' },
+];
 
 let _toastTimer;
 function showToast(msg, type='info', ms=2200) {
@@ -103,12 +113,25 @@ async function loadTransactions() {
       total:    parseFloat(t.total),
     },
     items: (t.items || []).map(i => ({
-      product: { id: i.product_id, name: i.product_name, price: parseFloat(i.product_price) },
+      product: hydrateSoldItem(i.product_id, i.product_name, i.product_price),
       qty: i.qty,
     })),
     timestamp: new Date(t.created_at).toLocaleString(),
     _ts:       new Date(t.created_at).getTime(),
   }));
+}
+
+function hydrateSoldItem(productId, name, price) {
+  const product = state.products.find(p => p.id === productId);
+  const service = SERVICE_CATALOG.find(s => s.id === productId || s.name === name);
+  const source = product || service;
+  return {
+    id: productId || source?.id || null,
+    name,
+    price: parseFloat(price),
+    cat: source?.cat || (productId ? 'Products' : 'Services'),
+    type: product ? 'product' : 'service',
+  };
 }
 
 async function loadNotifications() {
@@ -153,6 +176,7 @@ function navigateTo(page) {
   const placeholders = { inventory:'Search products…', transactions:'Search transactions…', customers:'Search customers…', reporting:'' };
   el('searchInput').placeholder = placeholders[page] || 'Search…';
   if (page==='inventory')    renderInventory();
+  if (page==='pos')          renderPOS();
   if (page==='transactions') renderTransactions();
   if (page==='customers')    renderCustomers();
   if (page==='reporting')    renderReporting();
@@ -165,6 +189,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
 el('searchInput').addEventListener('input', e => {
   state.filter.search = e.target.value;
   if (state.activePage==='inventory')    renderInventory();
+  if (state.activePage==='pos')          renderPOS();
   if (state.activePage==='transactions') renderTransactions();
   if (state.activePage==='customers')    renderCustomers();
 });
@@ -234,12 +259,14 @@ function renderInventory() {
           <td>
             <button class="tbl-btn inv-edit-btn" data-id="${p.id}">Edit</button>
             <button class="tbl-btn inv-adj-btn"  data-id="${p.id}">Adjust Stock</button>
+            <button class="tbl-btn danger inv-del-btn" data-id="${p.id}">Delete</button>
           </td>
         </tr>`;
       }).join('');
 
   tbody.querySelectorAll('.inv-edit-btn').forEach(b => b.addEventListener('click', () => openInvEdit(b.dataset.id, false)));
   tbody.querySelectorAll('.inv-adj-btn').forEach(b  => b.addEventListener('click', () => openInvEdit(b.dataset.id, true)));
+  tbody.querySelectorAll('.inv-del-btn').forEach(b  => b.addEventListener('click', () => deleteInventoryProduct(b.dataset.id)));
 
   document.querySelectorAll('[data-sort]').forEach(th => {
     th.style.cursor = 'pointer';
@@ -249,6 +276,25 @@ function renderInventory() {
       renderInventory();
     };
   });
+}
+
+async function deleteInventoryProduct(id) {
+  const product = state.products.find(p => p.id === id);
+  if (!product) return;
+  if (!confirm(`Delete ${product.name} from inventory?`)) return;
+
+  try {
+    const { error } = await db.from('products').delete().eq('id', id);
+    if (error) throw error;
+
+    state.products = state.products.filter(p => p.id !== id);
+    state.pos.cart = state.pos.cart.filter(item => !(item.type === 'product' && item.id === id));
+    renderInventory();
+    renderPOS();
+    showToast(`${product.name} deleted`, 'success');
+  } catch (err) {
+    showToast('Delete failed: ' + err.message, 'error', 4200);
+  }
 }
 
 ['invSearch','invCatFilter','invStockFilter'].forEach(id => {
@@ -365,10 +411,242 @@ el('invEditSaveBtn').addEventListener('click', async () => {
 /* ══════════════════════════════════════════
    ████  TRANSACTIONS  ████
 ══════════════════════════════════════════ */
+/* POS / PURCHASE & SERVICES */
+function getPOSItems() {
+  const products = state.products.map(p => ({ ...p, type:'product' }));
+  return [...products, ...SERVICE_CATALOG];
+}
+
+function renderPOS() {
+  renderPOSCategories();
+  renderPOSGrid();
+  renderPOSCart();
+  renderPOSCustomerSuggestions();
+}
+
+function renderPOSCategories() {
+  const select = el('posCatFilter');
+  if (!select) return;
+  const current = select.value || 'all';
+  const cats = [...new Set(getPOSItems().map(i => i.cat).filter(Boolean))].sort();
+  select.innerHTML = `<option value="all">All Categories</option>` + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  select.value = cats.includes(current) ? current : 'all';
+}
+
+function renderPOSGrid() {
+  const grid = el('posGrid');
+  if (!grid) return;
+  const q = (el('posSearch')?.value || state.filter.search || '').toLowerCase();
+  const type = el('posTypeFilter')?.value || 'all';
+  const cat = el('posCatFilter')?.value || 'all';
+  const items = getPOSItems().filter(item => {
+    const searchable = `${item.name} ${item.sku || ''} ${item.cat || ''} ${item.variant || ''}`.toLowerCase();
+    return (!q || searchable.includes(q)) && (type === 'all' || item.type === type) && (cat === 'all' || item.cat === cat);
+  });
+
+  grid.innerHTML = items.length ? items.map(item => {
+    const disabled = item.type === 'product' && item.stock <= 0;
+    const stockText = item.type === 'service' ? 'Service' : `${item.stock} in stock`;
+    return `<button class="pos-item-card${disabled ? ' disabled' : ''}" data-id="${esc(item.id)}" data-type="${item.type}" ${disabled ? 'disabled' : ''}>
+      <span class="pos-item-type">${item.type === 'service' ? 'Service' : 'Product'}</span>
+      <span class="pos-item-name">${esc(item.name)}</span>
+      <span class="pos-item-meta">${esc(item.cat || '')}</span>
+      <span class="pos-item-stock">${esc(stockText)}</span>
+      <span class="pos-item-price">${fmt(item.price)}</span>
+    </button>`;
+  }).join('') : `<div class="empty-page pos-empty"><span class="material-symbols-outlined">search_off</span><p>No items found</p></div>`;
+
+  grid.querySelectorAll('.pos-item-card').forEach(card => {
+    card.addEventListener('click', () => addPOSItem(card.dataset.id, card.dataset.type));
+  });
+}
+
+function addPOSItem(id, type) {
+  const item = getPOSItems().find(x => x.id === id && x.type === type);
+  if (!item) return;
+  const existing = state.pos.cart.find(x => x.id === id && x.type === type);
+  const nextQty = (existing?.qty || 0) + 1;
+  if (type === 'product' && nextQty > item.stock) {
+    showToast(`Only ${item.stock} available`, 'error');
+    return;
+  }
+  if (existing) existing.qty = nextQty;
+  else state.pos.cart.push({ id:item.id, type:item.type, name:item.name, cat:item.cat, sku:item.sku || '', price:item.price, qty:1 });
+  renderPOSCart();
+}
+
+function updatePOSQty(id, type, delta) {
+  const line = state.pos.cart.find(x => x.id === id && x.type === type);
+  if (!line) return;
+  const source = getPOSItems().find(x => x.id === id && x.type === type);
+  const nextQty = line.qty + delta;
+  if (nextQty <= 0) state.pos.cart = state.pos.cart.filter(x => !(x.id === id && x.type === type));
+  else if (type === 'product' && source && nextQty > source.stock) showToast(`Only ${source.stock} available`, 'error');
+  else line.qty = nextQty;
+  renderPOSCart();
+}
+
+function getPOSTotals() {
+  const subtotal = state.pos.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const tax = subtotal * ((parseFloat(state.settings.taxRate) || 0) / 100);
+  return { subtotal, discount:0, tax, total:subtotal + tax };
+}
+
+function renderPOSCart() {
+  const box = el('posCartItems');
+  if (!box) return;
+  box.innerHTML = state.pos.cart.length ? state.pos.cart.map(item => `
+    <div class="pos-cart-item">
+      <div class="pos-cart-info">
+        <p class="pos-cart-name">${esc(item.name)}</p>
+        <p class="pos-cart-sub">${esc(item.type)} - ${fmt(item.price)} each</p>
+      </div>
+      <div class="pos-qty-controls">
+        <button class="qty-btn" data-action="dec" data-id="${esc(item.id)}" data-type="${item.type}">-</button>
+        <span class="pos-qty">${item.qty}</span>
+        <button class="qty-btn" data-action="inc" data-id="${esc(item.id)}" data-type="${item.type}">+</button>
+      </div>
+      <span class="pos-line-total">${fmt(item.price * item.qty)}</span>
+    </div>`).join('') : `<div class="pos-cart-empty">Cart is empty</div>`;
+
+  box.querySelectorAll('.qty-btn').forEach(btn => {
+    btn.addEventListener('click', () => updatePOSQty(btn.dataset.id, btn.dataset.type, btn.dataset.action === 'inc' ? 1 : -1));
+  });
+
+  const totals = getPOSTotals();
+  if (el('posTaxRate')) el('posTaxRate').textContent = state.settings.taxRate;
+  if (el('posSubtotal')) el('posSubtotal').textContent = fmt(totals.subtotal);
+  if (el('posTax')) el('posTax').textContent = fmt(totals.tax);
+  if (el('posGrandTotal')) el('posGrandTotal').textContent = fmt(totals.total);
+  const completeBtn = el('posCompleteBtn');
+  if (completeBtn) completeBtn.disabled = state.pos.cart.length === 0;
+}
+
+function renderPOSCustomerSuggestions() {
+  const input = el('posCustomerSearch');
+  const box = el('posCustomerSuggestions');
+  if (!input || !box) return;
+  const q = input.value.trim().toLowerCase();
+  if (state.pos.customer && !q) {
+    box.innerHTML = `<div class="pos-selected-customer"><span>${esc(state.pos.customer.name)}</span><button type="button" id="posCustomerClear">Clear</button></div>`;
+    el('posCustomerClear')?.addEventListener('click', () => {
+      state.pos.customer = null;
+      input.value = '';
+      renderPOSCustomerSuggestions();
+    });
+    return;
+  }
+  if (!q) { box.innerHTML = ''; return; }
+  const matches = state.customers.filter(c =>
+    c.name.toLowerCase().includes(q) || (c.phone || '').includes(q) || (c.email || '').toLowerCase().includes(q)
+  ).slice(0, 6);
+  box.innerHTML = matches.length ? matches.map(c => `
+    <button type="button" class="pos-suggestion-item" data-id="${esc(c.id)}">
+      <span>${esc(c.name)}</span><small>${esc(c.phone || c.email || '')}</small>
+    </button>`).join('') : `<div class="pos-suggestion-empty">No customer found</div>`;
+  box.querySelectorAll('.pos-suggestion-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.pos.customer = state.customers.find(c => c.id === btn.dataset.id) || null;
+      input.value = '';
+      renderPOSCustomerSuggestions();
+    });
+  });
+}
+
+async function completePOSSale() {
+  if (!state.pos.cart.length) { showToast('Add an item first', 'error'); return; }
+  for (const item of state.pos.cart.filter(i => i.type === 'product')) {
+    const product = state.products.find(p => p.id === item.id);
+    if (!product || product.stock < item.qty) {
+      showToast(`${item.name} does not have enough stock`, 'error');
+      renderPOSGrid();
+      return;
+    }
+  }
+
+  const btn = el('posCompleteBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Completing...'; }
+  const totals = getPOSTotals();
+  const method = el('posPaymentMethod')?.value || 'cash';
+  let transactionId = null;
+
+  try {
+    const { data: txn, error: txnError } = await db.from('transactions').insert({
+      customer_id: state.pos.customer?.id || null,
+      method,
+      subtotal: totals.subtotal,
+      discount: totals.discount,
+      tax: totals.tax,
+      total: totals.total,
+    }).select().single();
+    if (txnError) throw txnError;
+    transactionId = txn.id;
+
+    const itemRows = state.pos.cart.map(item => ({
+      transaction_id: transactionId,
+      product_id: item.type === 'product' ? item.id : null,
+      product_name: item.name,
+      product_price: item.price,
+      qty: item.qty,
+    }));
+    const { error: itemsError } = await db.from('transaction_items').insert(itemRows);
+    if (itemsError) throw itemsError;
+
+    for (const item of state.pos.cart.filter(i => i.type === 'product')) {
+      const product = state.products.find(p => p.id === item.id);
+      const newStock = Math.max(0, product.stock - item.qty);
+      const { error: stockError } = await db.from('products').update({ stock:newStock }).eq('id', item.id);
+      if (stockError) throw stockError;
+      product.stock = newStock;
+    }
+
+    const timestamp = new Date(txn.created_at || Date.now());
+    state.transactions.unshift({
+      id: transactionId,
+      customer: state.pos.customer ? { ...state.pos.customer } : null,
+      method,
+      totals,
+      items: state.pos.cart.map(item => ({ product:{ id:item.id, name:item.name, price:item.price, cat:item.cat, type:item.type }, qty:item.qty })),
+      timestamp: timestamp.toLocaleString(),
+      _ts: timestamp.getTime(),
+    });
+    state.pos.cart = [];
+    state.pos.customer = null;
+    if (el('posCustomerSearch')) el('posCustomerSearch').value = '';
+    renderPOS();
+    renderInventory();
+    showToast('Sale completed', 'success');
+    viewTransaction(transactionId);
+  } catch (err) {
+    if (transactionId) {
+      await db.from('transaction_items').delete().eq('transaction_id', transactionId);
+      await db.from('transactions').delete().eq('id', transactionId);
+    }
+    showToast('Checkout failed: ' + err.message, 'error', 4200);
+  } finally {
+    if (btn) { btn.disabled = state.pos.cart.length === 0; btn.textContent = 'Complete Sale'; }
+  }
+}
+
+['posSearch','posTypeFilter','posCatFilter'].forEach(id => {
+  el(id)?.addEventListener('input', renderPOSGrid);
+  el(id)?.addEventListener('change', () => { renderPOSCategories(); renderPOSGrid(); });
+});
+el('posCustomerSearch')?.addEventListener('input', () => {
+  state.pos.customer = null;
+  renderPOSCustomerSuggestions();
+});
+el('posClearBtn')?.addEventListener('click', () => {
+  state.pos.cart = [];
+  renderPOSCart();
+});
+el('posCompleteBtn')?.addEventListener('click', completePOSSale);
+
 function renderTransactions() {
   const q      = (el('txnSearch')?.value || state.filter.search).toLowerCase();
   const method = el('txnMethodFilter')?.value || 'all';
   const dateF  = el('txnDateFilter')?.value   || 'all';
+  const svcF   = el('txnServiceFilter')?.value || 'all';
   const now    = Date.now();
   const DAY    = 86400000;
 
@@ -377,7 +655,13 @@ function renderTransactions() {
     const mOk = method==='all' || t.method===method;
     const age = now - t._ts;
     const dOk = dateF==='all' || (dateF==='today'&&age<DAY) || (dateF==='week'&&age<7*DAY) || (dateF==='month'&&age<30*DAY);
-    return qOk && mOk && dOk;
+    const hasProduct = t.items.some(i => i.product.type === 'product');
+    const serviceCats = t.items.filter(i => i.product.type === 'service').map(i => serviceFilterKey(i.product.cat));
+    const sOk = svcF === 'all'
+      || (svcF === 'product' && hasProduct)
+      || serviceCats.includes(svcF)
+      || (svcF === 'other' && serviceCats.length && serviceCats.every(c => !['facial','body_treatment','laser_therapy'].includes(c)));
+    return qOk && mOk && dOk && sOk;
   });
 
   const statEl = el('txnStats');
@@ -425,7 +709,15 @@ function renderTransactions() {
   tbody.querySelectorAll('.txn-view-btn').forEach(b => b.addEventListener('click', () => viewTransaction(b.dataset.id)));
 }
 
-['txnSearch','txnMethodFilter','txnDateFilter'].forEach(id => {
+function serviceFilterKey(cat) {
+  const c = (cat || '').toLowerCase();
+  if (c.includes('facial')) return 'facial';
+  if (c.includes('body')) return 'body_treatment';
+  if (c.includes('laser')) return 'laser_therapy';
+  return 'other';
+}
+
+['txnSearch','txnMethodFilter','txnDateFilter','txnServiceFilter'].forEach(id => {
   el(id)?.addEventListener('input',  renderTransactions);
   el(id)?.addEventListener('change', renderTransactions);
 });
@@ -636,12 +928,11 @@ function renderReporting() {
   </div>`).join('');
 
   // Revenue by category
-  const cats    = [...new Set(PRODUCTS.map(p=>p.cat))];
+  const cats    = [...new Set([...PRODUCTS.map(p=>p.cat), ...SERVICE_CATALOG.map(s=>s.cat)])];
   const catRevs = {};
   txns.forEach(t => t.items.forEach(({product:p,qty}) => {
-    // Try to match product category from state
     const prod = PRODUCTS.find(x=>x.id===p.id);
-    const cat  = prod?.cat || 'Other';
+    const cat  = p.cat || prod?.cat || 'Other';
     catRevs[cat] = (catRevs[cat]||0) + p.price*qty;
   }));
   const maxCat = Math.max(1, ...Object.values(catRevs));
@@ -659,7 +950,7 @@ function renderReporting() {
   txns.forEach(t => { methods[t.method]=(methods[t.method]||0)+t.totals.total; });
   drawDonut(methods);
 
-  // Top products
+  // Top products and services
   const prodRev = {};
   txns.forEach(t => t.items.forEach(({product:p,qty}) => {
     prodRev[p.name] = prodRev[p.name] || { name:p.name, rev:0, qty:0 };
@@ -898,16 +1189,13 @@ async function init() {
 
   // Load all data from Supabase
   setLoading(true);
-  await Promise.all([
-    loadProducts(),
-    loadCustomers(),
-    loadTransactions(),
-    loadNotifications(),
-  ]);
+  await Promise.all([loadProducts(), loadCustomers(), loadNotifications()]);
+  await loadTransactions();
   setLoading(false);
 
   // Render initial page
   renderInventory();
+  renderPOS();
   updateNotifBadge();
 }
 
