@@ -36,6 +36,39 @@ const el       = id => document.getElementById(id);
 const initials = name => name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 const esc      = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
+function skuSegment(value) {
+  return String(value || 'Product')
+    .replace(/[^a-z0-9 ]/gi, '')
+    .trim()
+    .split(/\s+/)
+    .map(word => word[0])
+    .join('')
+    .slice(0, 3)
+    .toUpperCase()
+    .padEnd(3, 'X');
+}
+
+function generateProductSku(category = 'Skin Care Products') {
+  const prefix = `DERM-${skuSegment(category)}`;
+  const usedSkus = [
+    ...state.products.map(p => p.sku),
+    ...SERVICE_CATALOG.map(s => s.sku),
+  ].filter(Boolean);
+  const used = new Set(usedSkus.map(sku => String(sku).toUpperCase()));
+  const next = usedSkus.reduce((max, sku) => {
+    const match = String(sku).toUpperCase().match(new RegExp(`^${prefix}-(\\d+)$`));
+    return match ? Math.max(max, parseInt(match[1], 10)) : max;
+  }, 0) + 1;
+
+  let sequence = next;
+  let sku = `${prefix}-${String(sequence).padStart(4, '0')}`;
+  while (used.has(sku)) {
+    sequence += 1;
+    sku = `${prefix}-${String(sequence).padStart(4, '0')}`;
+  }
+  return sku;
+}
+
 const SERVICE_CATALOG = [
   { id:'svc-facial-basic', type:'service', name:'Signature Facial', cat:'Facial', sku:'SVC-FAC-001', price:120, stock:Infinity, variant:'60 min treatment' },
   { id:'svc-facial-deep', type:'service', name:'Deep Cleansing Facial', cat:'Facial', sku:'SVC-FAC-002', price:150, stock:Infinity, variant:'75 min treatment' },
@@ -205,9 +238,9 @@ function setLoading(show) {
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'loadingOverlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,15,8,.8);display:flex;align-items:center;justify-content:center;z-index:9999;';
-    overlay.innerHTML = `<div style="text-align:center;color:#f2f20d;font-family:'Space Mono',monospace;font-size:.8rem;letter-spacing:.1em">
-      <div style="width:32px;height:32px;border:2px solid rgba(242,242,13,.2);border-top-color:#f2f20d;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div>
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(11,18,18,.82);display:flex;align-items:center;justify-content:center;z-index:9999;';
+    overlay.innerHTML = `<div style="text-align:center;color:#66e3c4;font-family:'Space Mono',monospace;font-size:.8rem;letter-spacing:.1em">
+      <div style="width:32px;height:32px;border:2px solid rgba(102,227,196,.2);border-top-color:#66e3c4;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div>
       LOADING…
     </div>`;
     document.body.appendChild(overlay);
@@ -225,7 +258,7 @@ function renderInventory() {
   const low = state.settings.lowStock;
 
   let rows = state.products.filter(p => {
-    const qOk = !q || p.name.toLowerCase().includes(q) || p.sku.includes(q);
+    const qOk = !q || p.name.toLowerCase().includes(q) || String(p.sku || '').toLowerCase().includes(q);
     const cOk = cat==='all' || p.cat===cat;
     const sOk = stk==='all'
       || (stk==='out' && p.stock===0)
@@ -315,6 +348,7 @@ el('invExportBtn')?.addEventListener('click', () => {
 function openInvEdit(id, stockOnly) {
   const p    = id ? state.products.find(x => x.id===id) : null;
   const isNew = !p;
+  const skuValue = isNew ? generateProductSku() : (p?.sku || generateProductSku(p?.cat));
   state._editingProduct = { id: p?.id || null, stockOnly };
 
   el('invEditTitle').textContent = isNew
@@ -342,7 +376,13 @@ function openInvEdit(id, stockOnly) {
          ${['Skin Care Products', 'Hair Care', 'Body Lotion', 'Topical Cream','Fragrance'].map(c=>`<option${c===p?.cat?' selected':''}>${c}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group"><label class="form-label">SKU</label><input class="form-input" id="fe_sku" value="${p?.sku||''}"/></div>
+      <div class="form-group">
+        <label class="form-label">SKU</label>
+        <div class="sku-field">
+          <input class="form-input sku-input" id="fe_sku" value="${skuValue}" readonly/>
+          ${isNew ? '<button class="icon-action-btn" id="fe_regen_sku" type="button" title="Regenerate SKU"><span class="material-symbols-outlined">autorenew</span></button>' : ''}
+        </div>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Price</label><input class="form-input" id="fe_price" type="number" min="0" step="0.01" value="${p?.price||0}"/></div>
@@ -351,6 +391,16 @@ function openInvEdit(id, stockOnly) {
     <div class="form-group"><label class="form-label">Variant / Description</label><input class="form-input" id="fe_variant" value="${p?.variant||'Default'}"/></div>
     <div class="form-group"><label class="form-label">Image URL (optional)</label><input class="form-input" id="fe_img" value="${p?.img||''}"/></div>
   `;
+  if (!stockOnly && isNew) {
+    el('fe_cat')?.addEventListener('change', e => {
+      const skuInput = el('fe_sku');
+      if (skuInput) skuInput.value = generateProductSku(e.target.value);
+    });
+    el('fe_regen_sku')?.addEventListener('click', () => {
+      const skuInput = el('fe_sku');
+      if (skuInput) skuInput.value = generateProductSku(el('fe_cat')?.value);
+    });
+  }
   openModal('invEditModal');
 }
 
@@ -379,7 +429,7 @@ el('invEditSaveBtn').addEventListener('click', async () => {
       const payload = {
         name:     el('fe_name')?.value.trim()  || (p?.name || 'New Product'),
         category: el('fe_cat')?.value          || 'Skin Care Products',
-        sku:      el('fe_sku')?.value.trim()   || '',
+        sku:      el('fe_sku')?.value.trim()   || generateProductSku(el('fe_cat')?.value),
         price:    parseFloat(el('fe_price')?.value) || 0,
         stock:    parseInt(el('fe_stock')?.value)   || 0,
         variant:  el('fe_variant')?.value      || 'Default',
@@ -992,7 +1042,7 @@ function drawDonut(methods) {
   const W=canvas.width, H=canvas.height;
   ctx.clearRect(0,0,W,H);
   if (!total) {
-    ctx.fillStyle='#2e2e18'; ctx.beginPath(); ctx.arc(W/2,H/2,H/2-4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#244040'; ctx.beginPath(); ctx.arc(W/2,H/2,H/2-4,0,Math.PI*2); ctx.fill();
   } else {
     let start=0;
     Object.entries(methods).forEach(([m,v]) => {
@@ -1004,10 +1054,12 @@ function drawDonut(methods) {
       start+=angle;
     });
     ctx.beginPath(); ctx.arc(W/2,H/2,H/3,0,Math.PI*2);
-    ctx.fillStyle='#1c1c10'; ctx.fill();
-    ctx.fillStyle='#e5e5cc'; ctx.font='bold 11px "Space Mono",monospace';
+    ctx.fillStyle='#152323'; ctx.fill();
+    const totalLabel = fmt(total);
+    ctx.fillStyle='#e8f4ef';
+    ctx.font=`bold ${totalLabel.length > 10 ? 9 : 11}px "Space Mono",monospace`;
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(fmt(total), W/2, H/2);
+    ctx.fillText(totalLabel, W/2, H/2);
   }
   el('donutLegend').innerHTML = Object.entries(methods).map(([m,v]) => `
     <div class="legend-item">
@@ -1026,7 +1078,7 @@ function drawLineChart(txns) {
 
   const sorted = [...txns].sort((a,b)=>a._ts-b._ts);
   const W = canvas.parentElement.offsetWidth || 700;
-  const H = 160;
+  const H = 180;
   canvas.width=W; canvas.height=H;
   const ctx=canvas.getContext('2d');
   ctx.clearRect(0,0,W,H);
@@ -1044,14 +1096,14 @@ function drawLineChart(txns) {
   }
 
   const grad=ctx.createLinearGradient(0,pad,0,H-pad);
-  grad.addColorStop(0,'rgba(242,242,13,.15)');
-  grad.addColorStop(1,'rgba(242,242,13,0)');
+  grad.addColorStop(0,'rgba(102,227,196,.16)');
+  grad.addColorStop(1,'rgba(102,227,196,0)');
   ctx.fillStyle=grad;
   ctx.beginPath(); ctx.moveTo(pad, H-pad-(vals[0]/maxV)*(H-pad*2));
   vals.forEach((v,i) => ctx.lineTo(pad+i*xStep, H-pad-(v/maxV)*(H-pad*2)));
   ctx.lineTo(pad+(vals.length-1)*xStep, H-pad); ctx.lineTo(pad, H-pad); ctx.closePath(); ctx.fill();
 
-  ctx.strokeStyle='#f2f20d'; ctx.lineWidth=2; ctx.lineJoin='round';
+  ctx.strokeStyle='#66e3c4'; ctx.lineWidth=2; ctx.lineJoin='round';
   ctx.beginPath(); ctx.moveTo(pad, H-pad-(vals[0]/maxV)*(H-pad*2));
   vals.forEach((v,i) => ctx.lineTo(pad+i*xStep, H-pad-(v/maxV)*(H-pad*2)));
   ctx.stroke();
@@ -1059,9 +1111,9 @@ function drawLineChart(txns) {
   vals.forEach((v,i) => {
     const x=pad+i*xStep, y=H-pad-(v/maxV)*(H-pad*2);
     ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2);
-    ctx.fillStyle='#f2f20d'; ctx.fill();
+    ctx.fillStyle='#66e3c4'; ctx.fill();
     if (i===0||i===vals.length-1||(vals.length<=6)) {
-      ctx.fillStyle='rgba(242,242,13,.6)'; ctx.font='9px "Space Mono"'; ctx.textAlign='center';
+      ctx.fillStyle='rgba(102,227,196,.72)'; ctx.font='9px "Space Mono"'; ctx.textAlign='center';
       ctx.fillText(fmt(v), x, y-10);
     }
   });
